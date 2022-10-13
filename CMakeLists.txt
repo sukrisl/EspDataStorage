@@ -1,0 +1,9 @@
+idf_component_register(
+    SRCS
+        "EspDataStorage.cpp"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        spi_flash
+        esp_littlefs
+)
