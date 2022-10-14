@@ -1,6 +1,8 @@
 idf_component_register(
     SRCS
         "EspDataStorage.cpp"
+        "SPIFlash.cpp"
+        "StorageDevice.cpp"
     INCLUDE_DIRS
         "include"
     REQUIRES

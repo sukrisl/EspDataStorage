@@ -1,40 +1,20 @@
 #pragma once
 
-#include "driver/spi_common.h"
-#include "esp_flash.h"
-#include "esp_flash_spi_init.h"
-#include "esp_partition.h"
+#include <unordered_map>
+#include <memory>
 
-#include "esp_littlefs.h"
-
-typedef enum {
-    DATA_STORAGE_INTERNAL_FLASH = 0,
-    DATA_STORAGE_EXTERNAL_FLASH,
-    DATA_STORAGE_BOTH_FLASH,
-} DataStorageOption_t;
+#include "StorageDevice.h"
 
 class EspDataStorage {
  private:
-    spi_host_device_t extFlashSpihost = SPI3_HOST;
-    spi_bus_config_t extFlashSpiBusCfg;
-    esp_flash_spi_device_config_t extFlashCfg;
-    esp_flash_t* extFlashDev;
-
-    const esp_partition_t* extFlashPartition;
-
-    esp_vfs_littlefs_conf_t extFlashFsConf;
-
-    const char* extFlashBasePath;
-
-    bool initExtFlash();
+    std::unordered_map<uint8_t, std::shared_ptr<StorageDevice>> devices;
 
  public:
-    bool init(DataStorageOption_t option = DATA_STORAGE_INTERNAL_FLASH);
-    bool deinit(DataStorageOption_t option = DATA_STORAGE_INTERNAL_FLASH);
+    bool addDevice(uint8_t id, StorageDeviceType_t type);
+    bool removeDevice(uint8_t id);
 
-    bool createPartitionOnExtFlash(const char* label, const char* basePath, size_t size = 0xF00000);
-    bool listPartition(DataStorageOption_t option = DATA_STORAGE_INTERNAL_FLASH);
+    bool createPartition(uint8_t partitionID, const char* label, const char* basePath, size_t size);
 
-    bool printFileContent(const char* filepath);
-    bool appendDataToFile(const char* filepath, const char* data);
+    bool print(const char* filepath);
+    bool append(const char* filepath, const char* data);
 };

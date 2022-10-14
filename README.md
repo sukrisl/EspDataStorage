@@ -39,7 +39,7 @@ extern "C" void app_main(void) {
     storage.init();
     storage.createPartitionOnExtFlash("eventlog", "/eventlog");
 
-    storage.printFileContent("/eventlog/restart_event.txt");
+    storage.print("/eventlog/restart_event.txt");
 
     srand(esp_timer_get_time());
 
@@ -49,7 +49,7 @@ extern "C" void app_main(void) {
 
     char dataRestart[50];
     sprintf(dataRestart, "Restart event after %d ms", restart_delay);
-    storage.appendDataToFile("/eventlog/restart_event.txt", dataRestart);
+    storage.append("/eventlog/restart_event.txt", dataRestart);
 
     esp_restart();
 
