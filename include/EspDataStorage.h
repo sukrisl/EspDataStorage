@@ -16,5 +16,8 @@ class EspDataStorage {
     bool createPartition(uint8_t partitionID, const char* label, const char* basePath, size_t size);
 
     bool print(const char* filepath);
+    bool read(const char* filepath, char* dataDestination, char terminator = '\0');
     bool append(const char* filepath, const char* data);
+    bool write(const char* filepath, const char* data);
+    bool rm(const char* filepath);
 };

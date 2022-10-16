@@ -81,8 +81,43 @@ bool EspDataStorage::print(const char* filepath) {
     return true;
 }
 
+bool EspDataStorage::read(const char* filepath, char* dataDestination, char terminator) {
+    FILE *f = fopen(filepath, "r");
+
+    if (f == NULL) {
+        ESP_LOGE(TAG, "Failed to open file for reading");
+        fclose(f);
+        return false;
+    }
+
+    char line[100];
+    while (fgets(line, sizeof(line), f)) {
+        char *pos = strchr(line, terminator);
+        strcat(dataDestination, line);
+        if (pos) break;
+    }
+
+    fclose(f);
+    return true;    
+}
+
 bool EspDataStorage::append(const char* filepath, const char* data) {
     FILE *f = fopen(filepath, "a");
+
+    if (f == NULL) {
+        ESP_LOGE(TAG, "Failed to open file for append");
+        fclose(f);
+        return false;
+    }
+
+    fprintf(f, "%s\n", data);
+    fclose(f);
+
+    return true;
+}
+
+bool EspDataStorage::write(const char* filepath, const char* data) {
+    FILE *f = fopen(filepath, "w");
 
     if (f == NULL) {
         ESP_LOGE(TAG, "Failed to open file for writing");
@@ -93,5 +128,15 @@ bool EspDataStorage::append(const char* filepath, const char* data) {
     fprintf(f, "%s\n", data);
     fclose(f);
 
+    return true;
+}
+
+bool EspDataStorage::rm(const char* filepath) {
+    if (remove(filepath) != 0 ) {
+        ESP_LOGW(TAG, "Error deleting file");
+        return false;
+    }
+
+    ESP_LOGI(TAG, "Successfully delete file %s", filepath);
     return true;
 }
