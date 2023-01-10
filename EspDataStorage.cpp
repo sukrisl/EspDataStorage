@@ -12,7 +12,11 @@ bool EspDataStorage::addDevice(uint8_t id, StorageDeviceType_t type) {
         std::shared_ptr<SPIFlash> device = std::make_shared<SPIFlash>();
 
         if (device) {
-            device->install();
+            if (!device->install()) {
+                ESP_LOGE(TAG, "Failed to install flash device");
+                return false;
+            }
+
             devices.insert(std::make_pair(id, device));
             return true;
         }
@@ -28,7 +32,10 @@ bool EspDataStorage::createPartition(uint8_t partitionID, const char* label, con
         return false;
     }
 
-    device->registerPartition(label, size);
+    if (!device->registerPartition(label, size)) {
+        ESP_LOGW(TAG, "Failed to register partition");
+        return false;
+    }
 
     esp_vfs_littlefs_conf_t fsConfig = {
         .base_path = basePath,

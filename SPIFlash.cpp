@@ -2,14 +2,22 @@
 
 #include "SPIFlash.h"
 
-static const char* TAG = "spi_flash";
+static const char* TAG = "SPI_flash";
 
 esp_err_t SPIFlash::initSPIbus() {
+#ifdef CONFIG_IDF_TARGET_ESP32S3
+    spiBusConfig.miso_io_num = SPI2_IOMUX_PIN_NUM_MISO;
+    spiBusConfig.mosi_io_num = SPI2_IOMUX_PIN_NUM_MOSI;
+    spiBusConfig.sclk_io_num = SPI2_IOMUX_PIN_NUM_CLK;
+    spiBusConfig.quadwp_io_num = SPI2_IOMUX_PIN_NUM_WP;
+    spiBusConfig.quadhd_io_num = SPI2_IOMUX_PIN_NUM_HD;
+#else
     spiBusConfig.miso_io_num = SPI3_IOMUX_PIN_NUM_MISO;
     spiBusConfig.mosi_io_num = SPI3_IOMUX_PIN_NUM_MOSI;
     spiBusConfig.sclk_io_num = SPI3_IOMUX_PIN_NUM_CLK;
     spiBusConfig.quadwp_io_num = -1;
     spiBusConfig.quadhd_io_num = -1;
+#endif
 
     return spi_bus_initialize(spiHost, &spiBusConfig, SPI_DMA_CH_AUTO);
 }
@@ -17,8 +25,13 @@ esp_err_t SPIFlash::initSPIbus() {
 esp_err_t SPIFlash::addFlashDevice() {
     flashConfig = {
         .host_id = spiHost,
+#ifdef CONFIG_IDF_TARGET_ESP32S3
+        .cs_io_num = SPI2_IOMUX_PIN_NUM_CS,
+        .io_mode = SPI_FLASH_QIO,
+#else
         .cs_io_num = SPI3_IOMUX_PIN_NUM_CS,
         .io_mode = SPI_FLASH_DIO,
+#endif
         .speed = ESP_FLASH_80MHZ,
         .input_delay_ns = 0,
         .cs_id = 0,
@@ -34,10 +47,16 @@ bool SPIFlash::registerPartition(const char* label, size_t size) {
         ESP_PARTITION_SUBTYPE_DATA_SPIFFS, &partition
     );
 
+    const esp_partition_t* verifiedPartition = esp_partition_verify(partition);
+    if (verifiedPartition == NULL) {
+        ESP_LOGW(TAG, "Partition verification failed");
+        return false;
+    }
+
     ESP_LOGI(TAG, "Successfully registered storage partition");
-    ESP_LOGI(TAG, "part_label:  %s", partition->label);
-    ESP_LOGI(TAG, "offset:      0x%x", partition->address);
-    ESP_LOGI(TAG, "size:        0x%x", partition->size);
+    ESP_LOGI(TAG, "part_label:  %s", verifiedPartition->label);
+    ESP_LOGI(TAG, "offset:      0x%x", verifiedPartition->address);
+    ESP_LOGI(TAG, "size:        0x%x", verifiedPartition->size);
 
     return (ret == ESP_OK);
 }
@@ -50,7 +69,11 @@ bool SPIFlash::install() {
     info.capacity = 0;
 
     esp_err_t ret;
+#ifdef CONFIG_IDF_TARGET_ESP32S3
+    spiHost = SPI2_HOST;
+#else
     spiHost = SPI3_HOST;
+#endif
 
     ret = initSPIbus();
     if (ret != ESP_OK) {
