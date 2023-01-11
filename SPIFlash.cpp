@@ -1,3 +1,5 @@
+#include <cstring>
+
 #include "esp_log.h"
 
 #include "SPIFlash.h"
@@ -33,7 +35,7 @@ esp_err_t SPIFlash::addFlashDevice() {
         .io_mode = SPI_FLASH_DIO,
 #endif
         .speed = ESP_FLASH_80MHZ,
-        .input_delay_ns = 0,
+        .input_delay_ns = 10,
         .cs_id = 0,
     };
 
@@ -42,14 +44,20 @@ esp_err_t SPIFlash::addFlashDevice() {
 
 bool SPIFlash::registerPartition(const char* label, size_t size) {
     // TODO: automatic offset
+
     esp_err_t ret = esp_partition_register_external(
-        device, 0, size, label, ESP_PARTITION_TYPE_DATA,
+        device, 0x1000, size, label, ESP_PARTITION_TYPE_DATA,
         ESP_PARTITION_SUBTYPE_DATA_SPIFFS, &partition
     );
 
+    if (partition == NULL) {
+        ESP_LOGE(TAG, "Failed to register partition: %s", esp_err_to_name(ret));
+        return false;
+    }
+
     const esp_partition_t* verifiedPartition = esp_partition_verify(partition);
     if (verifiedPartition == NULL) {
-        ESP_LOGW(TAG, "Partition verification failed");
+        ESP_LOGE(TAG, "Partition verification failed");
         return false;
     }
 
@@ -99,6 +107,8 @@ bool SPIFlash::install() {
     info.status = STORAGE_DEVICE_ONLINE;
     info.type = STORAGE_DEVICE_TYPE_FLASH;
     info.capacity = device->size;
+
+    ESP_LOGI(TAG, "Flash installed, size: %d", device->size);
 
     return esp_flash_chip_driver_initialized(device);
 }

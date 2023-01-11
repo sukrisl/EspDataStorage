@@ -32,10 +32,7 @@ bool EspDataStorage::createPartition(uint8_t partitionID, const char* label, con
         return false;
     }
 
-    if (!device->registerPartition(label, size)) {
-        ESP_LOGW(TAG, "Failed to register partition");
-        return false;
-    }
+    if (!device->registerPartition(label, size)) return false;
 
     esp_vfs_littlefs_conf_t fsConfig = {
         .base_path = basePath,
