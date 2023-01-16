@@ -21,18 +21,26 @@ bool EspDataStorage::addDevice(uint8_t id, StorageDeviceType_t type) {
     return false;
 }
 
-bool EspDataStorage::createPartition(uint8_t partitionID, const char* label, const char* basePath, size_t size) {
+bool EspDataStorage::createPartition(uint8_t partitionID, const char* label, size_t size) {
     std::shared_ptr<StorageDevice> device = devices[partitionID];
     if (!device) {
         ESP_LOGW(TAG, "Failed to create partition, storage device [%u] not found", partitionID);
         return false;
     }
 
-    device->registerPartition(label, size);
+    bool success = device->registerPartition(label, size);
 
+    if (success) {
+        ESP_LOGI(TAG, "Create partition %s (id:%u) success", label, partitionID);
+    }
+
+    return success;
+}
+
+bool EspDataStorage::mount(const char* partitionLabel, const char* basePath) {
     esp_vfs_littlefs_conf_t fsConfig = {
         .base_path = basePath,
-        .partition_label = label,
+        .partition_label = partitionLabel,
         .format_if_mount_failed = true,
         .dont_mount = false,
     };
@@ -81,7 +89,7 @@ bool EspDataStorage::print(const char* filepath) {
     return true;
 }
 
-bool EspDataStorage::read(const char* filepath, char* dataDestination, char terminator) {
+bool EspDataStorage::read(const char* filepath, char* dest, uint32_t bufferSize, char terminator) {
     FILE *f = fopen(filepath, "r");
 
     if (f == NULL) {
@@ -90,15 +98,14 @@ bool EspDataStorage::read(const char* filepath, char* dataDestination, char term
         return false;
     }
 
-    char line[100];
-    while (fgets(line, sizeof(line), f)) {
-        char *pos = strchr(line, terminator);
-        strcat(dataDestination, line);
+    *dest = {0};
+    while (fgets(dest, bufferSize, f)) {
+        char *pos = strchr(dest, terminator);
         if (pos) break;
     }
 
     fclose(f);
-    return true;    
+    return true;
 }
 
 bool EspDataStorage::append(const char* filepath, const char* data) {
