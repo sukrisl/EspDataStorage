@@ -12,7 +12,11 @@ bool EspDataStorage::addDevice(uint8_t id, StorageDeviceType_t type) {
         std::shared_ptr<SPIFlash> device = std::make_shared<SPIFlash>();
 
         if (device) {
-            device->install();
+            if (!device->install()) {
+                ESP_LOGE(TAG, "Failed to install flash device");
+                return false;
+            }
+
             devices.insert(std::make_pair(id, device));
             return true;
         }
