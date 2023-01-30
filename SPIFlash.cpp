@@ -29,13 +29,11 @@ esp_err_t SPIFlash::addFlashDevice() {
         .host_id = spiHost,
 #ifdef CONFIG_IDF_TARGET_ESP32S3
         .cs_io_num = SPI2_IOMUX_PIN_NUM_CS,
-        .io_mode = SPI_FLASH_QIO,
-        .speed = ESP_FLASH_80MHZ,
 #else
         .cs_io_num = SPI3_IOMUX_PIN_NUM_CS,
+#endif
         .io_mode = SPI_FLASH_DIO,
         .speed = ESP_FLASH_40MHZ,
-#endif
         .input_delay_ns = 0,
         .cs_id = 0,
     };
