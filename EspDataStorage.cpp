@@ -8,7 +8,7 @@
 
 #include "SPIFlash.h"
 
-#define TIMEOUT_MS 100
+#define TIMEOUT_MS 500
 
 static SemaphoreHandle_t mutex = NULL;
 
@@ -25,7 +25,6 @@ bool EspDataStorage::init() {
         ESP_LOGE(TAG, "Failed to initialize EspDataStorage, possibly run out of memory.");
         return false;
     }
-
     return true;
 }
 
@@ -43,7 +42,6 @@ bool EspDataStorage::addDevice(uint8_t id, StorageDeviceType_t type) {
             return true;
         }
     }
-
     return false;
 }
 
@@ -59,7 +57,6 @@ bool EspDataStorage::createPartition(uint8_t partitionID, const char* label, siz
     if (success) {
         ESP_LOGD(TAG, "Create partition %s (id:%u) success", label, partitionID);
     }
-
     return success;
 }
 
@@ -91,7 +88,6 @@ bool EspDataStorage::mount(const char* partitionLabel, const char* basePath) {
         return false;
     }
     ESP_LOGD(TAG, "Partition size: total: %d, used: %d", total, used);
-
     return false;
 }
 
@@ -149,7 +145,6 @@ bool EspDataStorage::mkfile(const char* filepath) {
 
     fclose(f);
     xSemaphoreGive(mutex);
-
     return true;
 }
 
@@ -179,7 +174,6 @@ bool EspDataStorage::read(const char* filepath, char* dest, uint32_t bufferLen) 
 
     fclose(f);
     xSemaphoreGive(mutex);
-
     return true;
 }
 
@@ -200,7 +194,6 @@ bool EspDataStorage::append(const char* filepath, const char* data) {
     fprintf(f, "%s\n", data);
     fclose(f);
     xSemaphoreGive(mutex);
-
     return true;
 }
 
@@ -221,7 +214,6 @@ bool EspDataStorage::write(const char* filepath, const char* data) {
     fprintf(f, "%s\n", data);
     fclose(f);
     xSemaphoreGive(mutex);
-
     return true;
 }
 
