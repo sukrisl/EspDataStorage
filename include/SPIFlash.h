@@ -1,16 +1,15 @@
 #pragma once
 
-#include "driver/spi_common.h"
-#include "esp_flash.h"
-#include "esp_flash_spi_init.h"
-#include "esp_partition.h"
-
-#include "esp_littlefs.h"
+#include <driver/spi_common.h>
+#include <esp_flash.h>
+#include <esp_flash_spi_init.h>
+#include <esp_partition.h>
 
 #include "StorageDevice.h"
+#include "esp_littlefs.h"
 
 class SPIFlash : public StorageDevice {
- private:
+   private:
     esp_flash_t* device;
     spi_host_device_t spiHost;
     spi_bus_config_t spiBusConfig;
@@ -21,7 +20,7 @@ class SPIFlash : public StorageDevice {
     esp_err_t initSPIbus();
     esp_err_t addFlashDevice();
 
- public:
+   public:
     bool install() override;
     bool uninstall() override;
     bool registerPartition(const char* label, size_t size) override;

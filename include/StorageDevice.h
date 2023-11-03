@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+
 typedef enum {
     STORAGE_DEVICE_ONLINE = 0,
     STORAGE_DEVICE_OFFLINE,
@@ -19,10 +22,10 @@ typedef struct {
 } StorageDeviceInfo_t;
 
 class StorageDevice {
- protected:
+   protected:
     StorageDeviceInfo_t info;
 
- public:
+   public:
     virtual bool install() = 0;
     virtual bool uninstall() = 0;
     virtual bool registerPartition(const char* label, size_t size) = 0;

@@ -1,9 +1,10 @@
+#include "EspDataStorage.h"
+
+#include <esp_log.h>
+
 #include <cstring>
 
-#include "esp_log.h"
-
 #include "SPIFlash.h"
-#include "EspDataStorage.h"
 
 static const char* TAG = "EspDataStorage";
 
@@ -21,7 +22,7 @@ bool EspDataStorage::addDevice(uint8_t id, StorageDeviceType_t type) {
             return true;
         }
     }
-    
+
     return false;
 }
 
@@ -35,7 +36,7 @@ bool EspDataStorage::createPartition(uint8_t partitionID, const char* label, siz
     bool success = device->registerPartition(label, size);
 
     if (success) {
-        ESP_LOGI(TAG, "Create partition %s (id:%u) success", label, partitionID);
+        ESP_LOGD(TAG, "Create partition %s (id:%u) success", label, partitionID);
     }
 
     return success;
@@ -68,13 +69,36 @@ bool EspDataStorage::mount(const char* partitionLabel, const char* basePath) {
         ESP_LOGE(TAG, "Failed to get LittleFS partition information (%s)", esp_err_to_name(ret));
         return false;
     }
-    ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
+    ESP_LOGD(TAG, "Partition size: total: %d, used: %d", total, used);
 
     return false;
 }
 
 bool EspDataStorage::print(const char* filepath) {
-    FILE *f = fopen(filepath, "r");
+    FILE* f = fopen(filepath, "r");
+
+    if (f == NULL) {
+        ESP_LOGE(TAG, "Failed to open file for reading");
+        fclose(f);
+        return false;
+    }
+
+    char line[100];
+    ESP_LOGI(TAG, "Read from file %s:", filepath);
+    while (fgets(line, sizeof(line), f)) {
+        char* pos = strchr(line, '\n');
+        if (pos) {
+            *pos = '\0';
+        }
+        printf("%s\n", line);
+    }
+
+    fclose(f);
+    return true;
+}
+
+bool EspDataStorage::read(const char* filepath, char* dest, uint32_t bufferLen) {
+    FILE* f = fopen(filepath, "r");
 
     if (f == NULL) {
         ESP_LOGE(TAG, "Failed to open file for reading");
@@ -84,28 +108,11 @@ bool EspDataStorage::print(const char* filepath) {
 
     char line[100];
     while (fgets(line, sizeof(line), f)) {
-        char *pos = strchr(line, '\n');
-        if (pos) { *pos = '\0'; }
-        ESP_LOGI(TAG, "Read from file: %s", line);
-    }
-
-    fclose(f);
-    return true;
-}
-
-bool EspDataStorage::read(const char* filepath, char* dest, uint32_t bufferSize, char terminator) {
-    FILE *f = fopen(filepath, "r");
-
-    if (f == NULL) {
-        ESP_LOGE(TAG, "Failed to open file for reading");
-        fclose(f);
-        return false;
-    }
-
-    *dest = {0};
-    while (fgets(dest, bufferSize, f)) {
-        char *pos = strchr(dest, terminator);
-        if (pos) break;
+        if (bufferLen < strlen(dest) + strlen(line)) {
+            fclose(f);
+            return false;
+        }
+        strcat(dest, line);
     }
 
     fclose(f);
@@ -113,7 +120,7 @@ bool EspDataStorage::read(const char* filepath, char* dest, uint32_t bufferSize,
 }
 
 bool EspDataStorage::append(const char* filepath, const char* data) {
-    FILE *f = fopen(filepath, "a");
+    FILE* f = fopen(filepath, "a");
 
     if (f == NULL) {
         ESP_LOGE(TAG, "Failed to open file for append");
@@ -128,7 +135,7 @@ bool EspDataStorage::append(const char* filepath, const char* data) {
 }
 
 bool EspDataStorage::write(const char* filepath, const char* data) {
-    FILE *f = fopen(filepath, "w");
+    FILE* f = fopen(filepath, "w");
 
     if (f == NULL) {
         ESP_LOGE(TAG, "Failed to open file for writing");
@@ -143,11 +150,11 @@ bool EspDataStorage::write(const char* filepath, const char* data) {
 }
 
 bool EspDataStorage::rm(const char* filepath) {
-    if (remove(filepath) != 0 ) {
+    if (remove(filepath) != 0) {
         ESP_LOGW(TAG, "Error deleting file");
         return false;
     }
 
-    ESP_LOGI(TAG, "Successfully delete file %s", filepath);
+    ESP_LOGD(TAG, "Successfully delete file %s", filepath);
     return true;
 }

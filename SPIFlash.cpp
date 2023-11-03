@@ -1,10 +1,10 @@
-#include <cstring>
-
-#include "esp_log.h"
-
 #include "SPIFlash.h"
 
-static const char* TAG = "SPI_flash";
+#include <esp_log.h>
+
+#include <cstring>
+
+static const char* TAG = "SPIFlash";
 
 esp_err_t SPIFlash::initSPIbus() {
 #ifdef CONFIG_IDF_TARGET_ESP32S3
@@ -20,7 +20,6 @@ esp_err_t SPIFlash::initSPIbus() {
     spiBusConfig.quadwp_io_num = -1;
     spiBusConfig.quadhd_io_num = -1;
 #endif
-
     return spi_bus_initialize(spiHost, &spiBusConfig, SPI_DMA_CH_AUTO);
 }
 
@@ -37,7 +36,6 @@ esp_err_t SPIFlash::addFlashDevice() {
         .input_delay_ns = 0,
         .cs_id = 0,
     };
-
     return spi_bus_add_flash_device(&device, &flashConfig);
 }
 
@@ -46,8 +44,7 @@ bool SPIFlash::registerPartition(const char* label, size_t size) {
 
     esp_err_t ret = esp_partition_register_external(
         device, 0x1000, size, label, ESP_PARTITION_TYPE_DATA,
-        ESP_PARTITION_SUBTYPE_DATA_SPIFFS, &partition
-    );
+        ESP_PARTITION_SUBTYPE_DATA_SPIFFS, &partition);
 
     if (partition == NULL) {
         ESP_LOGE(TAG, "Failed to register partition: %s", esp_err_to_name(ret));
