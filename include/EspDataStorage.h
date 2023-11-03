@@ -10,6 +10,8 @@ class EspDataStorage {
     std::unordered_map<uint8_t, std::shared_ptr<StorageDevice>> devices;
 
    public:
+    bool init();
+
     bool addDevice(uint8_t id, StorageDeviceType_t type);
     bool removeDevice(uint8_t id);
 
@@ -17,6 +19,7 @@ class EspDataStorage {
     bool mount(const char* partitionLabel, const char* basePath);
 
     bool print(const char* filepath);
+    bool mkfile(const char* filepath);
     bool read(const char* filepath, char* dest, uint32_t bufferLen);
     bool append(const char* filepath, const char* data);
     bool write(const char* filepath, const char* data);
