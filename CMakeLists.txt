@@ -12,4 +12,5 @@ idf_component_register(
     REQUIRES
         spi_flash
         esp_littlefs
+        arduino-esp32
 )

@@ -1,5 +1,6 @@
 #include "EspDataStorage.h"
 
+#include <LittleFS.h>
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -8,6 +9,7 @@
 
 #include "SPIFlash.h"
 
+#define MAX_OPEN_FILE 10
 #define TIMEOUT_MS 500
 
 static SemaphoreHandle_t mutex = NULL;
@@ -60,44 +62,63 @@ bool EspDataStorage::createPartition(uint8_t partitionID, const char* label, siz
     return success;
 }
 
-bool EspDataStorage::mount(const char* partitionLabel, const char* basePath) {
-    esp_vfs_littlefs_conf_t fsConfig = {
-        .base_path = basePath,
-        .partition_label = partitionLabel,
-        .format_if_mount_failed = true,
-        .dont_mount = false,
-    };
-
-    esp_err_t ret = esp_vfs_littlefs_register(&fsConfig);
-
-    if (ret != ESP_OK) {
-        if (ret == ESP_FAIL) {
-            ESP_LOGE(TAG, "Failed to mount or format filesystem");
-        } else if (ret == ESP_ERR_NOT_FOUND) {
-            ESP_LOGE(TAG, "Failed to find LittleFS partition");
-        } else {
-            ESP_LOGE(TAG, "Failed to initialize LittleFS (%s)", esp_err_to_name(ret));
-        }
+bool EspDataStorage::mount(const char* partitionLabel, const char* basePath, bool formatOnFail) {
+    if (!LittleFS.begin(formatOnFail, basePath, MAX_OPEN_FILE, partitionLabel)) {
         return false;
     }
 
     size_t total = 0, used = 0;
-    ret = esp_littlefs_info(fsConfig.partition_label, &total, &used);
+    esp_err_t ret = esp_littlefs_info(partitionLabel, &total, &used);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get LittleFS partition information (%s)", esp_err_to_name(ret));
         return false;
     }
     ESP_LOGD(TAG, "Partition size: total: %d, used: %d", total, used);
-    return false;
+    return true;
 }
 
-bool EspDataStorage::print(const char* filepath) {
+void EspDataStorage::listDir(const char* dirname, uint8_t level) {
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(TIMEOUT_MS)) == pdFALSE) {
+        ESP_LOGE(TAG, "Failed to take mutex for file reading");
+        return;
+    }
+
+    ESP_LOGI(TAG, "Listing directory: %s", dirname);
+
+    File root = LittleFS.open(dirname);
+    if (!root) {
+        ESP_LOGW(TAG, "Failed to open directory: %s", dirname);
+        xSemaphoreGive(mutex);
+        return;
+    }
+    if (!root.isDirectory()) {
+        ESP_LOGW(TAG, "%s is not a directory", dirname);
+        xSemaphoreGive(mutex);
+        return;
+    }
+
+    File f = root.openNextFile();
+    while (f) {
+        if (f.isDirectory()) {
+            ESP_LOGI(TAG, "  DIR: %s", f.name());
+            if (level) {
+                listDir(f.path(), level - 1);
+            }
+        } else {
+            ESP_LOGI(TAG, "  FILE: %s, SIZE: %d", f.name(), f.size());
+        }
+        f = root.openNextFile();
+    }
+    xSemaphoreGive(mutex);
+}
+
+bool EspDataStorage::print(const char* path) {
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(TIMEOUT_MS)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
     }
 
-    FILE* f = fopen(filepath, "r");
+    FILE* f = fopen(path, "r");
 
     if (f == NULL) {
         ESP_LOGE(TAG, "Failed to open file for reading");
@@ -107,7 +128,7 @@ bool EspDataStorage::print(const char* filepath) {
     }
 
     char line[100];
-    ESP_LOGI(TAG, "Read from file %s:", filepath);
+    ESP_LOGI(TAG, "Read from file %s:", path);
     while (fgets(line, sizeof(line), f)) {
         char* pos = strchr(line, '\n');
         if (pos) {
@@ -121,23 +142,23 @@ bool EspDataStorage::print(const char* filepath) {
     return true;
 }
 
-bool EspDataStorage::mkfile(const char* filepath) {
+bool EspDataStorage::mkfile(const char* path) {
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(TIMEOUT_MS)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
     }
 
-    FILE* f = fopen(filepath, "r");
+    FILE* f = fopen(path, "r");
     if (f != NULL) {
-        ESP_LOGW(TAG, "File %s already exist", filepath);
+        ESP_LOGW(TAG, "File %s already exist", path);
         fclose(f);
         xSemaphoreGive(mutex);
         return false;
     }
 
-    f = fopen(filepath, "w");
+    f = fopen(path, "w");
     if (f == NULL) {
-        ESP_LOGE(TAG, "Failed to create %s", filepath);
+        ESP_LOGE(TAG, "Failed to create %s", path);
         fclose(f);
         xSemaphoreGive(mutex);
         return false;
@@ -148,13 +169,13 @@ bool EspDataStorage::mkfile(const char* filepath) {
     return true;
 }
 
-bool EspDataStorage::read(const char* filepath, char* dest, uint32_t bufferLen) {
+bool EspDataStorage::read(const char* path, char* dest, uint32_t bufferLen) {
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(TIMEOUT_MS)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
     }
 
-    FILE* f = fopen(filepath, "r");
+    FILE* f = fopen(path, "r");
     if (f == NULL) {
         ESP_LOGE(TAG, "Failed to open file for reading");
         fclose(f);
@@ -177,13 +198,13 @@ bool EspDataStorage::read(const char* filepath, char* dest, uint32_t bufferLen) 
     return true;
 }
 
-bool EspDataStorage::append(const char* filepath, const char* data) {
+bool EspDataStorage::append(const char* path, const char* data) {
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(TIMEOUT_MS)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
     }
 
-    FILE* f = fopen(filepath, "a");
+    FILE* f = fopen(path, "a");
     if (f == NULL) {
         ESP_LOGE(TAG, "Failed to open file for append");
         fclose(f);
@@ -197,13 +218,13 @@ bool EspDataStorage::append(const char* filepath, const char* data) {
     return true;
 }
 
-bool EspDataStorage::write(const char* filepath, const char* data) {
+bool EspDataStorage::write(const char* path, const char* data) {
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(TIMEOUT_MS)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
     }
 
-    FILE* f = fopen(filepath, "w");
+    FILE* f = fopen(path, "w");
     if (f == NULL) {
         ESP_LOGE(TAG, "Failed to open file for writing");
         fclose(f);
@@ -217,19 +238,19 @@ bool EspDataStorage::write(const char* filepath, const char* data) {
     return true;
 }
 
-bool EspDataStorage::rm(const char* filepath) {
+bool EspDataStorage::rm(const char* path) {
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(TIMEOUT_MS)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for rm file");
         return false;
     }
 
-    if (remove(filepath) != 0) {
+    if (remove(path) != 0) {
         ESP_LOGW(TAG, "Error deleting file");
         xSemaphoreGive(mutex);
         return false;
     }
 
-    ESP_LOGD(TAG, "Successfully delete file %s", filepath);
+    ESP_LOGD(TAG, "Successfully delete file %s", path);
     xSemaphoreGive(mutex);
     return true;
 }

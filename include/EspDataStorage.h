@@ -16,12 +16,14 @@ class EspDataStorage {
     bool removeDevice(uint8_t id);
 
     bool createPartition(uint8_t partitionID, const char* label, size_t size);
-    bool mount(const char* partitionLabel, const char* basePath);
+    bool mount(const char* partitionLabel, const char* basePath, bool formatOnFail = false);
 
-    bool print(const char* filepath);
-    bool mkfile(const char* filepath);
-    bool read(const char* filepath, char* dest, uint32_t bufferLen);
-    bool append(const char* filepath, const char* data);
-    bool write(const char* filepath, const char* data);
-    bool rm(const char* filepath);
+    void listDir(const char* dirname, uint8_t level = 1);
+
+    bool print(const char* path);
+    bool mkfile(const char* path);
+    bool read(const char* path, char* dest, uint32_t bufferLen);
+    bool append(const char* path, const char* data);
+    bool write(const char* path, const char* data);
+    bool rm(const char* path);
 };
