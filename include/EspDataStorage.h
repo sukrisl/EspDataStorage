@@ -1,9 +1,13 @@
 #pragma once
 
+#include <LittleFS.h>
+
 #include <memory>
 #include <unordered_map>
 
 #include "StorageDevice.h"
+
+typedef fs::LittleFSFS Partition_t;
 
 class EspDataStorage {
    private:
@@ -17,14 +21,14 @@ class EspDataStorage {
     bool rmdev(uint8_t id);
 
     bool mkpartition(uint8_t partitionID, const char* label, size_t size);
-    bool mount(const char* partitionLabel, const char* basePath, bool formatOnFail = false);
+    Partition_t* mount(const char* partitionLabel, const char* basePath, bool formatOnFail = false);
 
-    void listdir(const char* dirname, uint8_t level = 1);
+    void listdir(Partition_t* fs, const char* dirname, uint8_t level = 1);
 
-    bool mkfile(const char* path);
-    bool rm(const char* path);
-    size_t fsize(const char* path);
-    bool read(const char* path, char* dest, uint32_t bufferLen);
-    bool append(const char* path, const char* data);
-    bool write(const char* path, const char* data);
+    bool mkfile(Partition_t* fs, const char* path);
+    bool rm(Partition_t* fs, const char* path);
+    size_t fsize(Partition_t* fs, const char* path);
+    bool read(Partition_t* fs, const char* path, char* dest, uint32_t bufferLen);
+    bool append(Partition_t* fs, const char* path, const char* data);
+    bool write(Partition_t* fs, const char* path, const char* data);
 };
