@@ -13,18 +13,18 @@ class EspDataStorage {
    public:
     bool init(uint32_t waitTimeout_ms = 500);
 
-    bool addDevice(uint8_t id, StorageDeviceType_t type);
-    bool removeDevice(uint8_t id);
+    bool mkdev(uint8_t id, StorageDeviceType_t type);
+    bool rmdev(uint8_t id);
 
-    bool createPartition(uint8_t partitionID, const char* label, size_t size);
+    bool mkpartition(uint8_t partitionID, const char* label, size_t size);
     bool mount(const char* partitionLabel, const char* basePath, bool formatOnFail = false);
 
-    void listDir(const char* dirname, uint8_t level = 1);
+    void listdir(const char* dirname, uint8_t level = 1);
 
-    bool print(const char* path);
     bool mkfile(const char* path);
+    bool rm(const char* path);
+    size_t fsize(const char* path);
     bool read(const char* path, char* dest, uint32_t bufferLen);
     bool append(const char* path, const char* data);
     bool write(const char* path, const char* data);
-    bool rm(const char* path);
 };

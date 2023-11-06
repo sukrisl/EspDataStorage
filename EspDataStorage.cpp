@@ -31,7 +31,7 @@ bool EspDataStorage::init(uint32_t waitTimeout_ms) {
     return true;
 }
 
-bool EspDataStorage::addDevice(uint8_t id, StorageDeviceType_t type) {
+bool EspDataStorage::mkdev(uint8_t id, StorageDeviceType_t type) {
     if (type == STORAGE_DEVICE_TYPE_FLASH) {
         std::shared_ptr<SPIFlash> device = std::make_shared<SPIFlash>();
 
@@ -48,7 +48,7 @@ bool EspDataStorage::addDevice(uint8_t id, StorageDeviceType_t type) {
     return false;
 }
 
-bool EspDataStorage::createPartition(uint8_t partitionID, const char* label, size_t size) {
+bool EspDataStorage::mkpartition(uint8_t partitionID, const char* label, size_t size) {
     std::shared_ptr<StorageDevice> device = devices[partitionID];
     if (!device) {
         ESP_LOGW(TAG, "Failed to create partition, storage device [%u] not found", partitionID);
@@ -78,7 +78,7 @@ bool EspDataStorage::mount(const char* partitionLabel, const char* basePath, boo
     return true;
 }
 
-void EspDataStorage::listDir(const char* dirname, uint8_t level) {
+void EspDataStorage::listdir(const char* dirname, uint8_t level) {
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return;
@@ -89,11 +89,13 @@ void EspDataStorage::listDir(const char* dirname, uint8_t level) {
     File root = LittleFS.open(dirname);
     if (!root) {
         ESP_LOGW(TAG, "Failed to open directory: %s", dirname);
+        root.close();
         xSemaphoreGive(mutex);
         return;
     }
     if (!root.isDirectory()) {
         ESP_LOGW(TAG, "%s is not a directory", dirname);
+        root.close();
         xSemaphoreGive(mutex);
         return;
     }
@@ -103,44 +105,16 @@ void EspDataStorage::listDir(const char* dirname, uint8_t level) {
         if (f.isDirectory()) {
             ESP_LOGI(TAG, "  DIR: %s", f.name());
             if (level) {
-                listDir(f.path(), level - 1);
+                listdir(f.path(), level - 1);
             }
         } else {
             ESP_LOGI(TAG, "  FILE: %s, SIZE: %d", f.name(), f.size());
         }
         f = root.openNextFile();
     }
+    root.close();
+    f.close();
     xSemaphoreGive(mutex);
-}
-
-bool EspDataStorage::print(const char* path) {
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
-        ESP_LOGE(TAG, "Failed to take mutex for file reading");
-        return false;
-    }
-
-    FILE* f = fopen(path, "r");
-
-    if (f == NULL) {
-        ESP_LOGE(TAG, "Failed to open file for reading");
-        fclose(f);
-        xSemaphoreGive(mutex);
-        return false;
-    }
-
-    char line[100];
-    ESP_LOGI(TAG, "Read from file %s:", path);
-    while (fgets(line, sizeof(line), f)) {
-        char* pos = strchr(line, '\n');
-        if (pos) {
-            *pos = '\0';
-        }
-        printf("%s\n", line);
-    }
-
-    fclose(f);
-    xSemaphoreGive(mutex);
-    return true;
 }
 
 bool EspDataStorage::mkfile(const char* path) {
@@ -149,92 +123,22 @@ bool EspDataStorage::mkfile(const char* path) {
         return false;
     }
 
-    FILE* f = fopen(path, "r");
-    if (f != NULL) {
+    File f = LittleFS.open(path);
+    if (!f) {
         ESP_LOGW(TAG, "File %s already exist", path);
-        fclose(f);
+        f.close();
         xSemaphoreGive(mutex);
         return false;
     }
 
-    f = fopen(path, "w");
-    if (f == NULL) {
-        ESP_LOGE(TAG, "Failed to create %s", path);
-        fclose(f);
+    f = LittleFS.open(path, FILE_WRITE);
+    if (!f) {
+        ESP_LOGE(TAG, "Failed to create file: %s", path);
+        f.close();
         xSemaphoreGive(mutex);
         return false;
     }
 
-    fclose(f);
-    xSemaphoreGive(mutex);
-    return true;
-}
-
-bool EspDataStorage::read(const char* path, char* dest, uint32_t bufferLen) {
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
-        ESP_LOGE(TAG, "Failed to take mutex for file reading");
-        return false;
-    }
-
-    FILE* f = fopen(path, "r");
-    if (f == NULL) {
-        ESP_LOGE(TAG, "Failed to open file for reading");
-        fclose(f);
-        xSemaphoreGive(mutex);
-        return false;
-    }
-
-    char line[100];
-    while (fgets(line, sizeof(line), f)) {
-        if (bufferLen < strlen(dest) + strlen(line)) {
-            fclose(f);
-            xSemaphoreGive(mutex);
-            return false;
-        }
-        strcat(dest, line);
-    }
-
-    fclose(f);
-    xSemaphoreGive(mutex);
-    return true;
-}
-
-bool EspDataStorage::append(const char* path, const char* data) {
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
-        ESP_LOGE(TAG, "Failed to take mutex for file reading");
-        return false;
-    }
-
-    FILE* f = fopen(path, "a");
-    if (f == NULL) {
-        ESP_LOGE(TAG, "Failed to open file for append");
-        fclose(f);
-        xSemaphoreGive(mutex);
-        return false;
-    }
-
-    fprintf(f, "%s\n", data);
-    fclose(f);
-    xSemaphoreGive(mutex);
-    return true;
-}
-
-bool EspDataStorage::write(const char* path, const char* data) {
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
-        ESP_LOGE(TAG, "Failed to take mutex for file reading");
-        return false;
-    }
-
-    FILE* f = fopen(path, "w");
-    if (f == NULL) {
-        ESP_LOGE(TAG, "Failed to open file for writing");
-        fclose(f);
-        xSemaphoreGive(mutex);
-        return false;
-    }
-
-    fprintf(f, "%s\n", data);
-    fclose(f);
     xSemaphoreGive(mutex);
     return true;
 }
@@ -245,13 +149,99 @@ bool EspDataStorage::rm(const char* path) {
         return false;
     }
 
-    if (remove(path) != 0) {
+    if (!LittleFS.remove(path)) {
         ESP_LOGW(TAG, "Error deleting file");
         xSemaphoreGive(mutex);
         return false;
     }
 
     ESP_LOGD(TAG, "Successfully delete file %s", path);
+    xSemaphoreGive(mutex);
+    return true;
+}
+
+size_t EspDataStorage::fsize(const char* path) {
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
+        ESP_LOGE(TAG, "Failed to take mutex for file reading");
+        return false;
+    }
+
+    File f = LittleFS.open(path);
+    size_t sz = f.size();
+    f.close();
+    xSemaphoreGive(mutex);
+    return sz;
+}
+
+bool EspDataStorage::read(const char* path, char* dest, uint32_t bufferLen) {
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
+        ESP_LOGE(TAG, "Failed to take mutex for file reading");
+        return false;
+    }
+
+    File f = LittleFS.open(path);
+    if (!f || f.isDirectory()) {
+        ESP_LOGE(TAG, "Failed to open file: %s", path);
+        f.close();
+        xSemaphoreGive(mutex);
+        return false;
+    }
+
+    for (uint32_t i = 0; f.available() && bufferLen >= strlen(dest); i++) {
+        dest[i] = f.read();
+    }
+
+    f.close();
+    xSemaphoreGive(mutex);
+    return true;
+}
+
+bool EspDataStorage::append(const char* path, const char* data) {
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
+        ESP_LOGE(TAG, "Failed to take mutex for file reading");
+        return false;
+    }
+
+    File f = LittleFS.open(path, FILE_APPEND);
+    if (!f) {
+        ESP_LOGE(TAG, "Failed to open file for append");
+        f.close();
+        xSemaphoreGive(mutex);
+        return false;
+    }
+
+    if (!f.print(data)) {
+        ESP_LOGE(TAG, "Append failed to file: %s", path);
+        f.close();
+        xSemaphoreGive(mutex);
+        return false;
+    }
+
+    f.close();
+    xSemaphoreGive(mutex);
+    return true;
+}
+
+bool EspDataStorage::write(const char* path, const char* data) {
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
+        ESP_LOGE(TAG, "Failed to take mutex for file reading");
+        return false;
+    }
+
+    File f = LittleFS.open(path, FILE_WRITE);
+    if (!f) {
+        ESP_LOGE(TAG, "Failed to open file for write");
+        f.close();
+        xSemaphoreGive(mutex);
+        return false;
+    }
+
+    if (!f.print(data)) {
+        ESP_LOGE(TAG, "Write failed to file: %s", path);
+        f.close();
+        xSemaphoreGive(mutex);
+        return false;
+    }
     xSemaphoreGive(mutex);
     return true;
 }
