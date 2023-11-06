@@ -16,6 +16,8 @@ class EspDataStorage {
 
    public:
     bool init(uint32_t waitTimeout_ms = 500);
+    void done();
+    bool isBusy();
 
     bool mkdev(uint8_t id, StorageDeviceType_t type);
     bool rmdev(uint8_t id);

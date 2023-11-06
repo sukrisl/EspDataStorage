@@ -30,7 +30,24 @@ bool EspDataStorage::init(uint32_t waitTimeout_ms) {
     return true;
 }
 
+void EspDataStorage::done() {
+    assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
+    vSemaphoreDelete(mutex);
+    mutex = NULL;
+}
+
+bool EspDataStorage::isBusy() {
+    assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(1)) == pdFALSE) {
+        return true;
+    }
+    xSemaphoreGive(mutex);
+    return false;
+}
+
 bool EspDataStorage::mkdev(uint8_t id, StorageDeviceType_t type) {
+    assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
+
     if (type == STORAGE_DEVICE_TYPE_FLASH) {
         std::shared_ptr<SPIFlash> device = std::make_shared<SPIFlash>();
 
@@ -48,6 +65,8 @@ bool EspDataStorage::mkdev(uint8_t id, StorageDeviceType_t type) {
 }
 
 bool EspDataStorage::mkpartition(uint8_t partitionID, const char* label, size_t size) {
+    assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
+
     std::shared_ptr<StorageDevice> device = devices[partitionID];
     if (!device) {
         ESP_LOGW(TAG, "Failed to create partition, storage device [%u] not found", partitionID);
@@ -63,6 +82,8 @@ bool EspDataStorage::mkpartition(uint8_t partitionID, const char* label, size_t 
 }
 
 Partition_t* EspDataStorage::mount(const char* partitionLabel, const char* basePath, bool formatOnFail) {
+    assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
+
     Partition_t* fs = new Partition_t();
     if (!fs->begin(formatOnFail, basePath, MAX_OPEN_FILE, partitionLabel)) {
         delete fs;
@@ -83,7 +104,9 @@ Partition_t* EspDataStorage::mount(const char* partitionLabel, const char* baseP
 }
 
 bool EspDataStorage::unmount(Partition_t* fs) {
+    assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
+
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for unmount");
         return false;
@@ -97,7 +120,9 @@ bool EspDataStorage::unmount(Partition_t* fs) {
 }
 
 void EspDataStorage::listdir(Partition_t* fs, const char* dirname, uint8_t level) {
+    assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
+
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return;
@@ -137,21 +162,21 @@ void EspDataStorage::listdir(Partition_t* fs, const char* dirname, uint8_t level
 }
 
 bool EspDataStorage::mkfile(Partition_t* fs, const char* path) {
+    assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
+
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
     }
 
-    File f = fs->open(path);
-    if (!f) {
+    if (fs->exists(path)) {
         ESP_LOGW(TAG, "File %s already exist", path);
-        f.close();
         xSemaphoreGive(mutex);
         return false;
     }
 
-    f = fs->open(path, FILE_WRITE);
+    File f = fs->open(path, FILE_WRITE);
     if (!f) {
         ESP_LOGE(TAG, "Failed to create file: %s", path);
         f.close();
@@ -164,7 +189,9 @@ bool EspDataStorage::mkfile(Partition_t* fs, const char* path) {
 }
 
 bool EspDataStorage::rm(Partition_t* fs, const char* path) {
+    assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
+
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for rm file");
         return false;
@@ -182,7 +209,9 @@ bool EspDataStorage::rm(Partition_t* fs, const char* path) {
 }
 
 size_t EspDataStorage::fsize(Partition_t* fs, const char* path) {
+    assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
+
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
@@ -196,7 +225,9 @@ size_t EspDataStorage::fsize(Partition_t* fs, const char* path) {
 }
 
 bool EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_t bufferLen) {
+    assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
+
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
@@ -220,7 +251,9 @@ bool EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_
 }
 
 bool EspDataStorage::append(Partition_t* fs, const char* path, const char* data) {
+    assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
+
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
@@ -247,7 +280,9 @@ bool EspDataStorage::append(Partition_t* fs, const char* path, const char* data)
 }
 
 bool EspDataStorage::write(Partition_t* fs, const char* path, const char* data) {
+    assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
+
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
