@@ -21,7 +21,7 @@ static void readTask(void* arg) {
         char buffer[10000] = {0};
         storage.read("/sys/data.txt", buffer, sizeof(buffer));
         ESP_LOGI(TAG, "File content:\n%s", buffer);
-        vTaskDelay(pdMS_TO_TICKS(5000));
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
@@ -46,8 +46,9 @@ extern "C" void app_main(void) {
     xTaskCreate(readTask, "Storage read", (1024 * 100), NULL, 1, &readTaskHandle);
     xTaskCreate(writeTask, "Storage write", (1024 * 10), NULL, 1, &writeTaskHandle);
 
-    // Remove file after 1 minutes
-    vTaskDelay(pdMS_TO_TICKS(60000));
+    // Remove file after 10 seconds
+    vTaskDelay(pdMS_TO_TICKS(10000));
+    storage.listDir("/");
     if (storage.rm("/sys/data.txt")) {
         ESP_LOGI(TAG, "File deleted successfully");
     } else {
