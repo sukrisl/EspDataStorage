@@ -13,8 +13,8 @@ static TaskHandle_t readTaskHandle = NULL;
 static TaskHandle_t writeTaskHandle = NULL;
 
 EspDataStorage storage;
-Partition_t* exFS;
-Partition_t* inFS;
+Partition_t* exFS = NULL;
+Partition_t* inFS = NULL;
 
 static const char* TAG = "storage";
 
@@ -87,4 +87,7 @@ extern "C" void app_main(void) {
         vTaskDelete(writeTaskHandle);
         writeTaskHandle = NULL;
     }
+
+    storage.unmount(exFS);
+    storage.unmount(inFS);
 }

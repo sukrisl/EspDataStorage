@@ -65,6 +65,8 @@ bool EspDataStorage::mkpartition(uint8_t partitionID, const char* label, size_t 
 Partition_t* EspDataStorage::mount(const char* partitionLabel, const char* basePath, bool formatOnFail) {
     Partition_t* fs = new Partition_t();
     if (!fs->begin(formatOnFail, basePath, MAX_OPEN_FILE, partitionLabel)) {
+        delete fs;
+        fs = NULL;
         return fs;
     }
 
@@ -72,13 +74,30 @@ Partition_t* EspDataStorage::mount(const char* partitionLabel, const char* baseP
     esp_err_t ret = esp_littlefs_info(partitionLabel, &total, &used);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get LittleFS partition information (%s)", esp_err_to_name(ret));
+        delete fs;
+        fs = NULL;
         return fs;
     }
     ESP_LOGD(TAG, "Partition size: total: %d, used: %d", total, used);
     return fs;
 }
 
+bool EspDataStorage::unmount(Partition_t* fs) {
+    assert(fs != NULL && "Partition object is NULL, invalid argument.");
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
+        ESP_LOGE(TAG, "Failed to take mutex for unmount");
+        return false;
+    }
+    fs->end();
+    delete fs;
+    fs = NULL;
+    ESP_LOGI(TAG, "Unmount partition success.");
+    xSemaphoreGive(mutex);
+    return true;
+}
+
 void EspDataStorage::listdir(Partition_t* fs, const char* dirname, uint8_t level) {
+    assert(fs != NULL && "Partition object is NULL, invalid argument.");
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return;
@@ -118,6 +137,7 @@ void EspDataStorage::listdir(Partition_t* fs, const char* dirname, uint8_t level
 }
 
 bool EspDataStorage::mkfile(Partition_t* fs, const char* path) {
+    assert(fs != NULL && "Partition object is NULL, invalid argument.");
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
@@ -144,6 +164,7 @@ bool EspDataStorage::mkfile(Partition_t* fs, const char* path) {
 }
 
 bool EspDataStorage::rm(Partition_t* fs, const char* path) {
+    assert(fs != NULL && "Partition object is NULL, invalid argument.");
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for rm file");
         return false;
@@ -161,6 +182,7 @@ bool EspDataStorage::rm(Partition_t* fs, const char* path) {
 }
 
 size_t EspDataStorage::fsize(Partition_t* fs, const char* path) {
+    assert(fs != NULL && "Partition object is NULL, invalid argument.");
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
@@ -174,6 +196,7 @@ size_t EspDataStorage::fsize(Partition_t* fs, const char* path) {
 }
 
 bool EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_t bufferLen) {
+    assert(fs != NULL && "Partition object is NULL, invalid argument.");
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
@@ -197,6 +220,7 @@ bool EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_
 }
 
 bool EspDataStorage::append(Partition_t* fs, const char* path, const char* data) {
+    assert(fs != NULL && "Partition object is NULL, invalid argument.");
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
@@ -223,6 +247,7 @@ bool EspDataStorage::append(Partition_t* fs, const char* path, const char* data)
 }
 
 bool EspDataStorage::write(Partition_t* fs, const char* path, const char* data) {
+    assert(fs != NULL && "Partition object is NULL, invalid argument.");
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
