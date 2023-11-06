@@ -8,9 +8,10 @@
 class EspDataStorage {
    private:
     std::unordered_map<uint8_t, std::shared_ptr<StorageDevice>> devices;
+    uint32_t _waitTimeout_ms;
 
    public:
-    bool init();
+    bool init(uint32_t waitTimeout_ms = 500);
 
     bool addDevice(uint8_t id, StorageDeviceType_t type);
     bool removeDevice(uint8_t id);

@@ -10,13 +10,14 @@
 #include "SPIFlash.h"
 
 #define MAX_OPEN_FILE 10
-#define TIMEOUT_MS 500
 
 static SemaphoreHandle_t mutex = NULL;
 
 static const char* TAG = "EspDataStorage";
 
-bool EspDataStorage::init() {
+bool EspDataStorage::init(uint32_t waitTimeout_ms) {
+    _waitTimeout_ms = waitTimeout_ms;
+
     if (mutex != NULL) {
         ESP_LOGW(TAG, "EspDataStorage has been initialized.");
         return false;
@@ -78,7 +79,7 @@ bool EspDataStorage::mount(const char* partitionLabel, const char* basePath, boo
 }
 
 void EspDataStorage::listDir(const char* dirname, uint8_t level) {
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(TIMEOUT_MS)) == pdFALSE) {
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return;
     }
@@ -113,7 +114,7 @@ void EspDataStorage::listDir(const char* dirname, uint8_t level) {
 }
 
 bool EspDataStorage::print(const char* path) {
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(TIMEOUT_MS)) == pdFALSE) {
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
     }
@@ -143,7 +144,7 @@ bool EspDataStorage::print(const char* path) {
 }
 
 bool EspDataStorage::mkfile(const char* path) {
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(TIMEOUT_MS)) == pdFALSE) {
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
     }
@@ -170,7 +171,7 @@ bool EspDataStorage::mkfile(const char* path) {
 }
 
 bool EspDataStorage::read(const char* path, char* dest, uint32_t bufferLen) {
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(TIMEOUT_MS)) == pdFALSE) {
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
     }
@@ -199,7 +200,7 @@ bool EspDataStorage::read(const char* path, char* dest, uint32_t bufferLen) {
 }
 
 bool EspDataStorage::append(const char* path, const char* data) {
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(TIMEOUT_MS)) == pdFALSE) {
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
     }
@@ -219,7 +220,7 @@ bool EspDataStorage::append(const char* path, const char* data) {
 }
 
 bool EspDataStorage::write(const char* path, const char* data) {
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(TIMEOUT_MS)) == pdFALSE) {
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
         return false;
     }
@@ -239,7 +240,7 @@ bool EspDataStorage::write(const char* path, const char* data) {
 }
 
 bool EspDataStorage::rm(const char* path) {
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(TIMEOUT_MS)) == pdFALSE) {
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for rm file");
         return false;
     }
