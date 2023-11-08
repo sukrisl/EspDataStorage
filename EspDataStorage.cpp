@@ -224,7 +224,7 @@ size_t EspDataStorage::fsize(Partition_t* fs, const char* path) {
     return sz;
 }
 
-bool EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_t bufferLen) {
+bool EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_t bufferLen, char terminator) {
     assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
 
@@ -242,7 +242,14 @@ bool EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_
     }
 
     for (uint32_t i = 0; f.available() && bufferLen >= strlen(dest); i++) {
-        dest[i] = f.read();
+        char token = f.read();
+        if (token == terminator) {
+            f.close();
+            xSemaphoreGive(mutex);
+            return true;
+        }
+
+        dest[i] = token;
     }
 
     f.close();

@@ -31,7 +31,7 @@ class EspDataStorage {
     bool mkfile(Partition_t* fs, const char* path);
     bool rm(Partition_t* fs, const char* path);
     size_t fsize(Partition_t* fs, const char* path);
-    bool read(Partition_t* fs, const char* path, char* dest, uint32_t bufferLen);
+    bool read(Partition_t* fs, const char* path, char* dest, uint32_t bufferLen, char terminator = 0);
     bool append(Partition_t* fs, const char* path, const char* data);
     bool write(Partition_t* fs, const char* path, const char* data);
 };
