@@ -224,7 +224,7 @@ size_t EspDataStorage::fsize(Partition_t* fs, const char* path) {
     return sz;
 }
 
-bool EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_t bufferLen, char terminator) {
+bool EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_t bufferLen, char terminator, uint32_t pos) {
     assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
 
@@ -236,6 +236,14 @@ bool EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_
     File f = fs->open(path);
     if (!f || f.isDirectory()) {
         ESP_LOGE(TAG, "Failed to open file: %s", path);
+        f.close();
+        xSemaphoreGive(mutex);
+        return false;
+    }
+
+    bool isOutOfRange = !f.seek(pos);
+    if (isOutOfRange) {
+        ESP_LOGE(TAG, "File position (%d) out of range: %s", pos, path);
         f.close();
         xSemaphoreGive(mutex);
         return false;
