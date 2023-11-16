@@ -125,7 +125,7 @@ bool EspDataStorage::exists(Partition_t* fs, const char* path) {
 
     if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
         ESP_LOGE(TAG, "Failed to take mutex for file reading");
-        return;
+        return false;
     }
 
     bool res = fs->exists(path);
