@@ -133,6 +133,73 @@ bool EspDataStorage::exists(Partition_t* fs, const char* path) {
     return res;
 }
 
+bool EspDataStorage::mkdir(Partition_t* fs, const char* dirname) {
+    assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
+    assert(fs != NULL && "Partition object is NULL, invalid argument.");
+
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
+        ESP_LOGE(TAG, "Failed to take mutex for create directory");
+        return false;
+    }
+
+    bool res = fs->mkdir(dirname);
+    xSemaphoreGive(mutex);
+    return res;
+}
+
+bool EspDataStorage::rmdir(Partition_t* fs, const char* dirname) {
+    assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
+    assert(fs != NULL && "Partition object is NULL, invalid argument.");
+
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
+        ESP_LOGE(TAG, "Failed to take mutex for remove directory");
+        return false;
+    }
+
+    bool res = fs->rmdir(dirname);
+    if (res) {
+        xSemaphoreGive(mutex);
+        return true;
+    }
+
+    ESP_LOGW(TAG, "Directory \"%s\" is not empty", dirname);
+
+    File root = fs->open(dirname);
+    if (!root) {
+        root.close();
+        ESP_LOGE(TAG, "Failed to remove directory: %s", dirname);
+        xSemaphoreGive(mutex);
+        return false;
+    }
+
+    File f = root.openNextFile();
+    while (f) {
+        xSemaphoreGive(mutex);
+        if (f.isDirectory()) {
+            res = rmdir(fs, f.path());
+        } else {
+            char path[32] = {0};
+            strcpy(path, f.path());
+            f.close();
+            res = rm(fs, path);
+        }
+
+        f = root.openNextFile();
+        if (!res) {
+            break;
+        }
+    }
+
+    xSemaphoreGive(mutex);
+    if (res) {
+        res = rmdir(fs, dirname);
+    }
+    root.close();
+    f.close();
+
+    return res;
+}
+
 void EspDataStorage::listdir(Partition_t* fs, const char* dirname, uint8_t level) {
     assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
@@ -163,6 +230,7 @@ void EspDataStorage::listdir(Partition_t* fs, const char* dirname, uint8_t level
         if (f.isDirectory()) {
             ESP_LOGI(TAG, "  DIR: %s", f.name());
             if (level) {
+                xSemaphoreGive(mutex);
                 listdir(fs, f.path(), level - 1);
             }
         } else {
@@ -212,7 +280,7 @@ bool EspDataStorage::rm(Partition_t* fs, const char* path) {
     }
 
     if (!fs->remove(path)) {
-        ESP_LOGW(TAG, "Error deleting file");
+        ESP_LOGE(TAG, "Error deleting file: %s", path);
         xSemaphoreGive(mutex);
         return false;
     }
