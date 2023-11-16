@@ -119,6 +119,20 @@ bool EspDataStorage::unmount(Partition_t* fs) {
     return true;
 }
 
+bool EspDataStorage::exists(Partition_t* fs, const char* path) {
+    assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
+    assert(fs != NULL && "Partition object is NULL, invalid argument.");
+
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
+        ESP_LOGE(TAG, "Failed to take mutex for file reading");
+        return;
+    }
+
+    bool res = fs->exists(path);
+    xSemaphoreGive(mutex);
+    return res;
+}
+
 void EspDataStorage::listdir(Partition_t* fs, const char* dirname, uint8_t level) {
     assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
@@ -171,9 +185,9 @@ bool EspDataStorage::mkfile(Partition_t* fs, const char* path) {
     }
 
     if (fs->exists(path)) {
-        ESP_LOGW(TAG, "File %s already exist", path);
+        ESP_LOGD(TAG, "File %s already exist", path);
         xSemaphoreGive(mutex);
-        return false;
+        return true;
     }
 
     File f = fs->open(path, FILE_WRITE);

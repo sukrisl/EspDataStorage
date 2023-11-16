@@ -26,6 +26,7 @@ class EspDataStorage {
     Partition_t* mount(const char* partitionLabel, const char* basePath, bool formatOnFail = false);
     bool unmount(Partition_t* fs);
 
+    bool exists(Partition_t* fs, const char* path);
     void listdir(Partition_t* fs, const char* dirname, uint8_t level = 1);
 
     bool mkfile(Partition_t* fs, const char* path);
