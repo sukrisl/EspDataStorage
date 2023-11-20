@@ -10,6 +10,16 @@
 
 #define MAX_OPEN_FILE 10
 
+#define TAKE_LOCK()                                                             \
+    do {                                                                        \
+        if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) { \
+            ESP_LOGE(TAG, "Failed to take mutex");                              \
+            return false;                                                       \
+        }                                                                       \
+    } while (false)
+
+#define GIVE_LOCK() xSemaphoreGive(mutex)
+
 static SemaphoreHandle_t mutex = NULL;
 
 static const char* TAG = "EspDataStorage";
@@ -38,10 +48,8 @@ void EspDataStorage::done() {
 
 bool EspDataStorage::isBusy() {
     assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(1)) == pdFALSE) {
-        return true;
-    }
-    xSemaphoreGive(mutex);
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(1)) == pdFALSE) return true;
+    GIVE_LOCK();
     return false;
 }
 
@@ -106,44 +114,30 @@ Partition_t* EspDataStorage::mount(const char* partitionLabel, const char* baseP
 bool EspDataStorage::unmount(Partition_t* fs) {
     assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
-
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
-        ESP_LOGE(TAG, "Failed to take mutex for unmount");
-        return false;
-    }
+    TAKE_LOCK();
     fs->end();
     delete fs;
     fs = NULL;
     ESP_LOGI(TAG, "Unmount partition success.");
-    xSemaphoreGive(mutex);
+    GIVE_LOCK();
     return true;
 }
 
 bool EspDataStorage::exists(Partition_t* fs, const char* path) {
     assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
-
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
-        ESP_LOGE(TAG, "Failed to take mutex for file reading");
-        return false;
-    }
-
+    TAKE_LOCK();
     bool res = fs->exists(path);
-    xSemaphoreGive(mutex);
+    GIVE_LOCK();
     return res;
 }
 
 bool EspDataStorage::mkdir(Partition_t* fs, const char* dirname) {
     assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
-
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
-        ESP_LOGE(TAG, "Failed to take mutex for create directory");
-        return false;
-    }
-
+    TAKE_LOCK();
     bool res = fs->mkdir(dirname);
-    xSemaphoreGive(mutex);
+    GIVE_LOCK();
     return res;
 }
 
@@ -151,30 +145,25 @@ bool EspDataStorage::rmdir(Partition_t* fs, const char* dirname) {
     assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
 
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
-        ESP_LOGE(TAG, "Failed to take mutex for remove directory");
-        return false;
-    }
-
+    TAKE_LOCK();
     bool res = fs->rmdir(dirname);
     if (res) {
-        xSemaphoreGive(mutex);
+        GIVE_LOCK();
         return true;
     }
 
     ESP_LOGW(TAG, "Directory \"%s\" is not empty", dirname);
-
     File root = fs->open(dirname);
     if (!root) {
         root.close();
         ESP_LOGE(TAG, "Failed to remove directory: %s", dirname);
-        xSemaphoreGive(mutex);
+        GIVE_LOCK();
         return false;
     }
 
     File f = root.openNextFile();
     while (f) {
-        xSemaphoreGive(mutex);
+        GIVE_LOCK();
         if (f.isDirectory()) {
             res = rmdir(fs, f.path());
         } else {
@@ -190,7 +179,7 @@ bool EspDataStorage::rmdir(Partition_t* fs, const char* dirname) {
         }
     }
 
-    xSemaphoreGive(mutex);
+    GIVE_LOCK();
     if (res) {
         res = rmdir(fs, dirname);
     }
@@ -200,61 +189,53 @@ bool EspDataStorage::rmdir(Partition_t* fs, const char* dirname) {
     return res;
 }
 
-void EspDataStorage::listdir(Partition_t* fs, const char* dirname, uint8_t level) {
+bool EspDataStorage::listdir(Partition_t* fs, const char* dirname, uint8_t level) {
     assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
-
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
-        ESP_LOGE(TAG, "Failed to take mutex for file reading");
-        return;
-    }
-
     ESP_LOGI(TAG, "Listing directory: %s", dirname);
 
+    TAKE_LOCK();
     File root = fs->open(dirname);
     if (!root) {
         ESP_LOGW(TAG, "Failed to open directory: %s", dirname);
         root.close();
-        xSemaphoreGive(mutex);
-        return;
+        GIVE_LOCK();
+        return false;
     }
     if (!root.isDirectory()) {
         ESP_LOGW(TAG, "%s is not a directory", dirname);
         root.close();
-        xSemaphoreGive(mutex);
-        return;
+        GIVE_LOCK();
+        return false;
     }
 
     File f = root.openNextFile();
     while (f) {
         if (f.isDirectory()) {
-            ESP_LOGI(TAG, "  DIR: %s", f.name());
+            ESP_LOGI(TAG, "%*sDIR(%d)> /%s", 5 - level, "", level, f.name());
             if (level) {
-                xSemaphoreGive(mutex);
+                GIVE_LOCK();
                 listdir(fs, f.path(), level - 1);
             }
         } else {
-            ESP_LOGI(TAG, "  FILE: %s, SIZE: %d", f.name(), f.size());
+            ESP_LOGI(TAG, " %*sFILE(%d)> /%s, SIZE: %d", 5 - level, "", level, f.name(), f.size());
         }
         f = root.openNextFile();
     }
     root.close();
     f.close();
-    xSemaphoreGive(mutex);
+    GIVE_LOCK();
+    return true;
 }
 
 bool EspDataStorage::mkfile(Partition_t* fs, const char* path) {
     assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
 
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
-        ESP_LOGE(TAG, "Failed to take mutex for file reading");
-        return false;
-    }
-
+    TAKE_LOCK();
     if (fs->exists(path)) {
         ESP_LOGD(TAG, "File %s already exist", path);
-        xSemaphoreGive(mutex);
+        GIVE_LOCK();
         return true;
     }
 
@@ -262,11 +243,12 @@ bool EspDataStorage::mkfile(Partition_t* fs, const char* path) {
     if (!f) {
         ESP_LOGE(TAG, "Failed to create file: %s", path);
         f.close();
-        xSemaphoreGive(mutex);
+        GIVE_LOCK();
         return false;
     }
 
-    xSemaphoreGive(mutex);
+    f.close();
+    GIVE_LOCK();
     return true;
 }
 
@@ -274,19 +256,15 @@ bool EspDataStorage::rm(Partition_t* fs, const char* path) {
     assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
 
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
-        ESP_LOGE(TAG, "Failed to take mutex for rm file");
-        return false;
-    }
-
+    TAKE_LOCK();
     if (!fs->remove(path)) {
         ESP_LOGE(TAG, "Error deleting file: %s", path);
-        xSemaphoreGive(mutex);
+        GIVE_LOCK();
         return false;
     }
 
     ESP_LOGD(TAG, "Successfully delete file %s", path);
-    xSemaphoreGive(mutex);
+    GIVE_LOCK();
     return true;
 }
 
@@ -294,15 +272,11 @@ size_t EspDataStorage::fsize(Partition_t* fs, const char* path) {
     assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
 
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
-        ESP_LOGE(TAG, "Failed to take mutex for file reading");
-        return false;
-    }
-
+    TAKE_LOCK();
     File f = fs->open(path);
     size_t sz = f.size();
     f.close();
-    xSemaphoreGive(mutex);
+    GIVE_LOCK();
     return sz;
 }
 
@@ -310,16 +284,12 @@ bool EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_
     assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
 
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
-        ESP_LOGE(TAG, "Failed to take mutex for file reading");
-        return false;
-    }
-
+    TAKE_LOCK();
     File f = fs->open(path);
     if (!f || f.isDirectory()) {
         ESP_LOGE(TAG, "Failed to open file: %s", path);
         f.close();
-        xSemaphoreGive(mutex);
+        GIVE_LOCK();
         return false;
     }
 
@@ -327,7 +297,7 @@ bool EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_
     if (isOutOfRange) {
         ESP_LOGE(TAG, "File position (%d) out of range: %s", pos, path);
         f.close();
-        xSemaphoreGive(mutex);
+        GIVE_LOCK();
         return false;
     }
 
@@ -335,7 +305,7 @@ bool EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_
         char token = f.read();
         if (token == terminator) {
             f.close();
-            xSemaphoreGive(mutex);
+            GIVE_LOCK();
             return true;
         }
 
@@ -343,7 +313,7 @@ bool EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_
     }
 
     f.close();
-    xSemaphoreGive(mutex);
+    GIVE_LOCK();
     return true;
 }
 
@@ -351,28 +321,24 @@ bool EspDataStorage::append(Partition_t* fs, const char* path, const char* data)
     assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
 
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
-        ESP_LOGE(TAG, "Failed to take mutex for file reading");
-        return false;
-    }
-
+    TAKE_LOCK();
     File f = fs->open(path, FILE_APPEND);
     if (!f) {
         ESP_LOGE(TAG, "Failed to open file for append");
         f.close();
-        xSemaphoreGive(mutex);
+        GIVE_LOCK();
         return false;
     }
 
     if (!f.print(data)) {
         ESP_LOGE(TAG, "Append failed to file: %s", path);
         f.close();
-        xSemaphoreGive(mutex);
+        GIVE_LOCK();
         return false;
     }
 
     f.close();
-    xSemaphoreGive(mutex);
+    GIVE_LOCK();
     return true;
 }
 
@@ -380,25 +346,23 @@ bool EspDataStorage::write(Partition_t* fs, const char* path, const char* data) 
     assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
 
-    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) {
-        ESP_LOGE(TAG, "Failed to take mutex for file reading");
-        return false;
-    }
-
+    TAKE_LOCK();
     File f = fs->open(path, FILE_WRITE);
     if (!f) {
         ESP_LOGE(TAG, "Failed to open file for write");
         f.close();
-        xSemaphoreGive(mutex);
+        GIVE_LOCK();
         return false;
     }
 
     if (!f.print(data)) {
         ESP_LOGE(TAG, "Write failed to file: %s", path);
         f.close();
-        xSemaphoreGive(mutex);
+        GIVE_LOCK();
         return false;
     }
-    xSemaphoreGive(mutex);
+
+    f.close();
+    GIVE_LOCK();
     return true;
 }

@@ -29,7 +29,7 @@ class EspDataStorage {
     bool exists(Partition_t* fs, const char* path);
     bool mkdir(Partition_t* fs, const char* dirname);
     bool rmdir(Partition_t* fs, const char* dirname);
-    void listdir(Partition_t* fs, const char* dirname, uint8_t level = 0);
+    bool listdir(Partition_t* fs, const char* dirname, uint8_t level = 0);
 
     bool mkfile(Partition_t* fs, const char* path);
     bool rm(Partition_t* fs, const char* path);
