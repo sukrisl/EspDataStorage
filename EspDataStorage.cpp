@@ -146,13 +146,20 @@ bool EspDataStorage::rmdir(Partition_t* fs, const char* dirname) {
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
 
     TAKE_LOCK();
-    bool res = fs->rmdir(dirname);
+    bool res = false;
+    char* pathStr = strdup(dirname);
+    if (pathStr) {
+        char* ptr = strrchr(pathStr, '/');
+        if (ptr) res = fs->rmdir(pathStr);
+        free(pathStr);
+    }
+
     if (res) {
         GIVE_LOCK();
         return true;
     }
 
-    ESP_LOGW(TAG, "Directory \"%s\" is not empty", dirname);
+    ESP_LOGW(TAG, "Directory \"%s\" is not empty, recursively deleting directory content", dirname);
     File root = fs->open(dirname);
     if (!root) {
         root.close();
