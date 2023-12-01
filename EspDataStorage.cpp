@@ -18,6 +18,14 @@
         }                                                                       \
     } while (false)
 
+#define TAKE_LOCK_E()                                                           \
+    do {                                                                        \
+        if (xSemaphoreTake(mutex, pdMS_TO_TICKS(_waitTimeout_ms)) == pdFALSE) { \
+            ESP_LOGE(TAG, "Failed to take mutex");                              \
+            return STORAGE_IS_BUSY;                                             \
+        }                                                                       \
+    } while (false)
+
 #define GIVE_LOCK() xSemaphoreGive(mutex)
 
 static SemaphoreHandle_t mutex = NULL;
@@ -287,17 +295,24 @@ size_t EspDataStorage::fsize(Partition_t* fs, const char* path) {
     return sz;
 }
 
-bool EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_t bufferLen, char terminator, uint32_t pos) {
+StorageErr_t EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_t bufferLen, char terminator, uint32_t pos) {
     assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
     assert(fs != NULL && "Partition object is NULL, invalid argument.");
 
-    TAKE_LOCK();
+    TAKE_LOCK_E();
     File f = fs->open(path);
-    if (!f || f.isDirectory()) {
-        ESP_LOGE(TAG, "Failed to open file: %s", path);
+    if (!f) {
+        ESP_LOGE(TAG, "Failed to open file for reading: %s", path);
         f.close();
         GIVE_LOCK();
-        return false;
+        return STORAGE_FAIL;
+    }
+
+    if (f.isDirectory()) {
+        ESP_LOGE(TAG, "Failed to read, path is directory: %s", path);
+        f.close();
+        GIVE_LOCK();
+        return STORAGE_READ_IS_DIRECTORY;
     }
 
     bool isOutOfRange = !f.seek(pos);
@@ -305,7 +320,7 @@ bool EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_
         ESP_LOGE(TAG, "File position (%d) out of range: %s", pos, path);
         f.close();
         GIVE_LOCK();
-        return false;
+        return STORAGE_READ_OUT_OF_RANGE;
     }
 
     for (uint32_t i = 0; f.available() && bufferLen >= strlen(dest); i++) {
@@ -313,7 +328,7 @@ bool EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_
         if (token == terminator) {
             f.close();
             GIVE_LOCK();
-            return true;
+            return STORAGE_READ_FOUND_TERMINATOR;
         }
 
         dest[i] = token;
@@ -321,7 +336,7 @@ bool EspDataStorage::read(Partition_t* fs, const char* path, char* dest, uint32_
 
     f.close();
     GIVE_LOCK();
-    return true;
+    return (bufferLen >= strlen(dest)) ? STORAGE_READ_MAX_BUFFER : STORAGE_OK;
 }
 
 bool EspDataStorage::append(Partition_t* fs, const char* path, const char* data) {

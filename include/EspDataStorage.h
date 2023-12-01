@@ -9,6 +9,16 @@
 
 typedef fs::LittleFSFS Partition_t;
 
+typedef enum {
+    STORAGE_OK = 0,
+    STORAGE_FAIL,
+    STORAGE_IS_BUSY,
+    STORAGE_READ_FOUND_TERMINATOR,
+    STORAGE_READ_OUT_OF_RANGE,
+    STORAGE_READ_IS_DIRECTORY,
+    STORAGE_READ_MAX_BUFFER,
+} StorageErr_t;
+
 class EspDataStorage {
    private:
     std::unordered_map<uint8_t, std::shared_ptr<StorageDevice>> devices;
@@ -34,7 +44,7 @@ class EspDataStorage {
     bool mkfile(Partition_t* fs, const char* path);
     bool rm(Partition_t* fs, const char* path);
     size_t fsize(Partition_t* fs, const char* path);
-    bool read(Partition_t* fs, const char* path, char* dest, uint32_t bufferLen, char terminator = 0, uint32_t pos = 0);
+    StorageErr_t read(Partition_t* fs, const char* path, char* dest, uint32_t bufferLen, char terminator = 0, uint32_t pos = 0);
     bool append(Partition_t* fs, const char* path, const char* data);
     bool write(Partition_t* fs, const char* path, const char* data);
 };
