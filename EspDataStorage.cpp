@@ -336,7 +336,7 @@ StorageErr_t EspDataStorage::read(Partition_t* fs, const char* path, char* dest,
 
     f.close();
     GIVE_LOCK();
-    return (bufferLen >= strlen(dest)) ? STORAGE_READ_MAX_BUFFER : STORAGE_OK;
+    return (bufferLen >= strlen(dest)) ? STORAGE_OK : STORAGE_READ_MAX_BUFFER;
 }
 
 bool EspDataStorage::append(Partition_t* fs, const char* path, const char* data) {
