@@ -6,31 +6,19 @@
 
 static const char* TAG = "SPIFlash";
 
-esp_err_t SPIFlash::initSPIbus() {
-#ifdef CONFIG_IDF_TARGET_ESP32S3
-    spiBusConfig.miso_io_num = SPI2_IOMUX_PIN_NUM_MISO;
-    spiBusConfig.mosi_io_num = SPI2_IOMUX_PIN_NUM_MOSI;
-    spiBusConfig.sclk_io_num = SPI2_IOMUX_PIN_NUM_CLK;
-    spiBusConfig.quadwp_io_num = SPI2_IOMUX_PIN_NUM_WP;
-    spiBusConfig.quadhd_io_num = SPI2_IOMUX_PIN_NUM_HD;
-#else
-    spiBusConfig.miso_io_num = SPI3_IOMUX_PIN_NUM_MISO;
-    spiBusConfig.mosi_io_num = SPI3_IOMUX_PIN_NUM_MOSI;
-    spiBusConfig.sclk_io_num = SPI3_IOMUX_PIN_NUM_CLK;
+esp_err_t SPIFlash::initSPIbus(int miso, int mosi, int clk) {
+    spiBusConfig.miso_io_num = miso;
+    spiBusConfig.mosi_io_num = mosi;
+    spiBusConfig.sclk_io_num = clk;
     spiBusConfig.quadwp_io_num = -1;
     spiBusConfig.quadhd_io_num = -1;
-#endif
     return spi_bus_initialize(spiHost, &spiBusConfig, SPI_DMA_CH_AUTO);
 }
 
-esp_err_t SPIFlash::addFlashDevice() {
+esp_err_t SPIFlash::addFlashDevice(int cs) {
     flashConfig = {
         .host_id = spiHost,
-#ifdef CONFIG_IDF_TARGET_ESP32S3
-        .cs_io_num = SPI2_IOMUX_PIN_NUM_CS,
-#else
-        .cs_io_num = SPI3_IOMUX_PIN_NUM_CS,
-#endif
+        .cs_io_num = cs,
         .io_mode = SPI_FLASH_DIO,
         .speed = ESP_FLASH_40MHZ,
         .input_delay_ns = 0,
@@ -59,13 +47,13 @@ bool SPIFlash::registerPartition(const char* label, size_t size) {
 
     ESP_LOGI(TAG, "Successfully registered storage partition");
     ESP_LOGI(TAG, "part_label:  %s", verifiedPartition->label);
-    ESP_LOGI(TAG, "offset:      0x%x", verifiedPartition->address);
-    ESP_LOGI(TAG, "size:        0x%x", verifiedPartition->size);
+    ESP_LOGI(TAG, "offset:      0x%lx", verifiedPartition->address);
+    ESP_LOGI(TAG, "size:        0x%lx", verifiedPartition->size);
 
     return (ret == ESP_OK);
 }
 
-bool SPIFlash::install() {
+bool SPIFlash::install(int miso, int mosi, int clk, int cs) {
     ESP_LOGI(TAG, "Initializing SPI flash");
 
     info.status = STORAGE_DEVICE_OFFLINE;
@@ -79,13 +67,13 @@ bool SPIFlash::install() {
     spiHost = SPI3_HOST;
 #endif
 
-    ret = initSPIbus();
+    ret = initSPIbus(miso, mosi, clk);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize SPI bus for SPI flash, error: %s", esp_err_to_name(ret));
         return false;
     }
 
-    ret = addFlashDevice();
+    ret = addFlashDevice(cs);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to add SPI bus SPI flash, error: %s", esp_err_to_name(ret));
         return false;
@@ -104,7 +92,7 @@ bool SPIFlash::install() {
     info.type = STORAGE_DEVICE_TYPE_FLASH;
     info.capacity = device->size;
 
-    ESP_LOGI(TAG, "Flash installed, size: %d", device->size);
+    ESP_LOGI(TAG, "Flash installed, size: %lu", device->size);
 
     return esp_flash_chip_driver_initialized(device);
 }

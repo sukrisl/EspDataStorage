@@ -31,7 +31,7 @@ static const char* storageDeviceTypeToName(StorageDeviceType_t type) {
 void StorageDevice::printInfo() {
     ESP_LOGI(TAG, "status: %s", storageDeviceStatusToName(info.status));
     ESP_LOGI(TAG, "type: %s", storageDeviceTypeToName(info.type));
-    ESP_LOGI(TAG, "capacity: %d bytes", info.capacity);
+    ESP_LOGI(TAG, "capacity: %lu bytes", info.capacity);
 }
 
 StorageDeviceInfo_t StorageDevice::getInfo() {

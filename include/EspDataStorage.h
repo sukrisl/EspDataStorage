@@ -29,7 +29,7 @@ class EspDataStorage {
     void done();
     bool isBusy();
 
-    bool mkdev(uint8_t id, StorageDeviceType_t type);
+    bool mkdev(uint8_t id, StorageDeviceType_t type, int miso, int mosi, int clk, int cs);
     bool rmdev(uint8_t id);
 
     bool mkpartition(uint8_t partitionID, const char* label, size_t size);

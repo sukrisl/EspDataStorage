@@ -61,14 +61,14 @@ bool EspDataStorage::isBusy() {
     return false;
 }
 
-bool EspDataStorage::mkdev(uint8_t id, StorageDeviceType_t type) {
+bool EspDataStorage::mkdev(uint8_t id, StorageDeviceType_t type, int miso, int mosi, int clk, int cs) {
     assert(mutex != NULL && "EspDataStorage has not been initialized, call init() first.");
 
     if (type == STORAGE_DEVICE_TYPE_FLASH) {
         std::shared_ptr<SPIFlash> device = std::make_shared<SPIFlash>();
 
         if (device) {
-            if (!device->install()) {
+            if (!device->install(miso, mosi, clk, cs)) {
                 ESP_LOGE(TAG, "Failed to install flash device");
                 return false;
             }
@@ -317,7 +317,7 @@ StorageErr_t EspDataStorage::read(Partition_t* fs, const char* path, char* dest,
 
     bool isOutOfRange = !f.seek(pos);
     if (isOutOfRange) {
-        ESP_LOGE(TAG, "File position (%d) out of range: %s", pos, path);
+        ESP_LOGE(TAG, "File position (%lu) out of range: %s", pos, path);
         f.close();
         GIVE_LOCK();
         return STORAGE_READ_OUT_OF_RANGE;

@@ -17,11 +17,11 @@ class SPIFlash : public StorageDevice {
 
     const esp_partition_t* partition;
 
-    esp_err_t initSPIbus();
-    esp_err_t addFlashDevice();
+    esp_err_t initSPIbus(int miso, int mosi, int clk);
+    esp_err_t addFlashDevice(int cs);
 
    public:
-    bool install() override;
+    bool install(int miso, int mosi, int clk, int cs) override;
     bool uninstall() override;
     bool registerPartition(const char* label, size_t size) override;
 };

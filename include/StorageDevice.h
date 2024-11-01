@@ -26,7 +26,7 @@ class StorageDevice {
     StorageDeviceInfo_t info;
 
    public:
-    virtual bool install() = 0;
+    virtual bool install(int miso, int mosi, int clk, int cs) = 0;
     virtual bool uninstall() = 0;
     virtual bool registerPartition(const char* label, size_t size) = 0;
 
